@@ -68,15 +68,14 @@ if [ -f "$TMP_DIR/stats.txt" ]; then
         case "$key" in
             SCAN_N) SCAN_N="$value" ;;
             CANDIDATE_C) CANDIDATE_C="$value" ;;
-            HIT_HIGH_X) HIT_HIGH_X="$value" ;;
-            HIT_NORMAL_Y) HIT_NORMAL_Y="$value" ;;
+            HIT_C) HIT_C="$value" ;;
             FILTER_Z) FILTER_Z="$value" ;;
             ERROR_E) ERROR_E="$value" ;;
         esac
     done < "$TMP_DIR/stats.txt"
 
     # Write audit line
-    bash "$SCRIPT_DIR/stage_7_audit.sh" stats "$SCAN_N" "$CANDIDATE_C" "$HIT_HIGH_X" "$HIT_NORMAL_Y" "$FILTER_Z" "$ERROR_E"
+    bash "$SCRIPT_DIR/stage_7_audit.sh" stats "$SCAN_N" "$CANDIDATE_C" "$HIT_C" "$FILTER_Z" "$ERROR_E"
 fi
 
 # Cleanup temporary files

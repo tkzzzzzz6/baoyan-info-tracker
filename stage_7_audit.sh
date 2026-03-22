@@ -23,13 +23,12 @@ audit_line() {
 write_scan_stats() {
     local scan_n="${1:-0}"
     local candidate_c="${2:-0}"
-    local high_x="${3:-0}"
-    local normal_y="${4:-0}"
-    local filter_z="${5:-0}"
-    local error_e="${6:-0}"
-    local path="${7:-}"
+    local hit_c="${3:-0}"
+    local filter_z="${4:-0}"
+    local error_e="${5:-0}"
+    local path="${6:-}"
 
-    local stats_line="扫描PR数: $scan_n | 候选PR数: $candidate_c | 命中高优先级: $high_x | 命中常规: $normal_y | 过滤干扰项: $filter_z | 错误数: $error_e"
+    local stats_line="扫描PR数: $scan_n | 候选PR数: $candidate_c | 命中: $hit_c | 过滤干扰项: $filter_z | 错误数: $error_e"
 
     if [ -n "$path" ]; then
         stats_line="$stats_line | 路径: $path"
@@ -59,14 +58,14 @@ if [ $# -eq 0 ]; then
     echo "Usage: $0 [command] [arguments]"
     echo "Commands:"
     echo "  log <message>          Write a custom log line"
-    echo "  stats <scan> <candidate> <high> <normal> <filter> <error> [path]"
+    echo "  stats <scan> <candidate> <hit> <filter> <error> [path]"
     echo "  idle                   Write idle status"
     echo "  show [lines]           Show recent entries (default: 10)"
     echo
     echo "Examples:"
     echo '  $0 log "Script started"'
-    echo "  $0 stats 50 5 2 3 0 0"
-    echo "  $0 stats 0 0 0 0 0 0 CommitEarlyExit"
+    echo "  $0 stats 50 5 5 0 0"
+    echo "  $0 stats 0 0 0 0 0 CommitEarlyExit"
     echo "  $0 idle"
     echo "  $0 show 20"
     exit 1
@@ -78,11 +77,11 @@ case "$1" in
         audit_line "$*"
         ;;
     stats)
-        if [ $# -lt 6 ]; then
-            echo "Usage: $0 stats <scan> <candidate> <high> <normal> <filter> <error> [path]" >&2
+        if [ $# -lt 5 ]; then
+            echo "Usage: $0 stats <scan> <candidate> <hit> <filter> <error> [path]" >&2
             exit 1
         fi
-        write_scan_stats "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+        write_scan_stats "$2" "$3" "$4" "$5" "$6" "$7"
         ;;
     idle)
         write_idle
