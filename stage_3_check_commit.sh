@@ -76,7 +76,7 @@ if should_early_exit; then
     build_commit_message
     update_watermark
 
-    audit_line "扫描PR数: 0 | 候选PR数: 0 | 命中高优先级: 0 | 命中常规: 0 | 过滤干扰项: 0 | 错误数: 0 | 路径: CommitEarlyExit"
+    audit_line "扫描PR数: 0 | 候选PR数: 0 | 命中: 0 | 过滤干扰项: 0 | 错误数: 0 | 路径: CommitEarlyExit"
 
     echo "=== Stage 3 completed (early exit) ==="
     exit 0
