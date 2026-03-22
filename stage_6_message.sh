@@ -13,7 +13,9 @@ send_message() {
     local msg="$1"
     if [ -n "${MESSAGE_SINK_CMD:-}" ]; then
         echo "Dispatching message via MESSAGE_SINK_CMD..."
-        printf "%s\n" "$msg" | bash -lc "$MESSAGE_SINK_CMD"
+        # MESSAGE_SINK_CMD is operator-supplied shell code executed in a non-login
+        # subshell.  Do NOT set this variable from untrusted input.
+        printf "%s\n" "$msg" | bash -c "$MESSAGE_SINK_CMD"
     else
         echo "[PUSH]"
         printf "%s\n" "$msg"
