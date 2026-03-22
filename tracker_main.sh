@@ -1,163 +1,85 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Locate sibling config and helper scripts regardless of current working directory.
+# Tracker workflow orchestration example
+# This script shows how to orchestrate the stage scripts in sequence
+# This replaces the original monolithic tracker_main.sh
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/tracker_config.sh"
-source "$SCRIPT_DIR/tracker_extract.sh"
 
-# Fail fast if required CLI tools are missing.
-require_cmd() {
-    local cmd="$1"
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "ERROR: missing required command: $cmd" >&2
-        exit 1
-    fi
-}
+# ----------------- Main orchestration -----------------
 
-# Append one standardized line to the audit log.
-audit_line() {
-    local line="$1"
-    printf "[%s] %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$line" >> "$AUDIT_LOG"
-}
+echo "=== Starting Baoyan Tracker ==="
 
-# Message sink hook: use MESSAGE_SINK_CMD when configured, otherwise print locally.
-send_message() {
-    local msg="$1"
-    if [ -n "${MESSAGE_SINK_CMD:-}" ]; then
-        printf "%s\n" "$msg" | bash -lc "$MESSAGE_SINK_CMD"
-    else
-        echo "[PUSH]"
-        printf "%s\n" "$msg"
-    fi
-}
-
-require_cmd git
-require_cmd gh
-require_cmd jq
-require_cmd date
-
-# Ensure tracker storage path exists for watermark and audit output.
-mkdir -p "$TRACKER_DIR"
-
-if [ ! -d "$REPO_DIR" ]; then
-    echo "ERROR: REPO_DIR does not exist: $REPO_DIR" >&2
-    echo "Hint: set REPO_DIR before running, e.g. REPO_DIR=/home/ubuntu/CSLabInfo2025 bash ./baoyan-tracker/scripts/tracker_main.sh" >&2
+# Stage 1: Initialization and dependency check
+echo "Stage 1: Initialization"
+if ! bash "$SCRIPT_DIR/stage_1_init.sh"; then
+    echo "ERROR: Stage 1 failed"
     exit 1
 fi
 
-if [ ! -f "$WATERMARK_FILE" ]; then
-    date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ" > "$WATERMARK_FILE"
+# Stage 2: Repository sync
+echo "Stage 2: Repository sync"
+if ! bash "$SCRIPT_DIR/stage_2_sync_repo.sh"; then
+    echo "ERROR: Stage 2 failed"
+    exit 1
 fi
 
-LAST_SCAN_TIME="$(cat "$WATERMARK_FILE")"
-# Recover from malformed watermark by resetting to a safe baseline.
-if ! LAST_SCAN_EPOCH="$(date -u -d "$LAST_SCAN_TIME" +%s 2>/dev/null)"; then
-    LAST_SCAN_TIME="$(date -u -d "1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")"
-    LAST_SCAN_EPOCH="$(date -u -d "$LAST_SCAN_TIME" +%s)"
-    echo "$LAST_SCAN_TIME" > "$WATERMARK_FILE"
-fi
-NOW_EPOCH="$(date -u +%s)"
-
-# Pull latest repo state before any commit/PR judgment.
-cd "$REPO_DIR"
-git pull --ff-only
-
-LATEST_COMMIT_TIME="$(git log -1 --date=iso-strict --pretty=format:%cd)"
-LATEST_COMMIT_EPOCH="$(date -u -d "$LATEST_COMMIT_TIME" +%s)"
-COMMIT_AGE_SEC=$((NOW_EPOCH - LATEST_COMMIT_EPOCH))
-
-SCAN_N=0
-CANDIDATE_C=0
-HIT_HIGH_X=0
-HIT_NORMAL_Y=0
-FILTER_Z=0
-ERROR_E=0
-
-# Early-exit path: if a fresh main-branch commit is detected, push commit summary only.
-if [ "$LATEST_COMMIT_EPOCH" -gt "$LAST_SCAN_EPOCH" ] && [ "$COMMIT_AGE_SEC" -le "$COMMIT_EARLY_EXIT_WINDOW_SEC" ]; then
-    echo "Found new commit on main branch."
-    COMMIT_META="$(git log -1 --pretty=format:"%H%n%s%n%an%n%cd" --date=iso-strict)"
-    COMMIT_FILES="$(git show --name-only --pretty=format: HEAD)"
-    COMMIT_DIFF_ADDED="$(git show --unified=0 --pretty=format:"" HEAD | grep "^+" | grep -v "^+++" || true)"
-
-    printf "%s\n%s\n%s\n" "$COMMIT_META" "$COMMIT_FILES" "$COMMIT_DIFF_ADDED"
-
-    send_message "【保研情报推送】
-活动类型：主分支最新提交
-信息级别：常规
-更新详情：检测到主分支 1 小时内新增提交，已提取关键变动。
-来源参考：${TARGET_REPO}
-提交信息：
-${COMMIT_META}
-改动文件：
-${COMMIT_FILES}"
-
-    echo "$LATEST_COMMIT_TIME" > "$WATERMARK_FILE"
-    audit_line "扫描PR数: 0 | 候选PR数: 0 | 命中高优先级: 0 | 命中常规: 0 | 过滤干扰项: 0 | 错误数: 0 | 路径: CommitEarlyExit"
+# Stage 3: Commit check and early exit
+echo "Stage 3: Commit check"
+if bash "$SCRIPT_DIR/stage_3_check_commit.sh"; then
+    echo "Stage 3: Early exit (new commit detected)"
     exit 0
 fi
 
-# Fetch once, then filter in jq to avoid repeated API list calls.
-PR_ROWS="$(gh pr list -R "$TARGET_REPO" --limit "$PR_LIMIT" --state all --json number,updatedAt,state,title,body,url)"
-SCAN_N="$(echo "$PR_ROWS" | jq 'length')"
+# Stage 4: PR filtering
+echo "Stage 4: PR filtering"
+TMP_DIR=$(mktemp -d -t tracker-XXXXXX)
+CANDIDATES_FILE="$TMP_DIR/candidates.tsv"
 
-PR_CANDIDATES="$(echo "$PR_ROWS" | jq -r --arg last "$LAST_SCAN_TIME" '
-    .[]
-    | select(.updatedAt > $last)
-    | select(.state == "OPEN" or .state == "MERGED")
-    | [.number, .updatedAt, .title, .url]
-    | @tsv')"
-
-if [ -z "$PR_CANDIDATES" ]; then
-    audit_line "Status: Idle (No relevant updates)."
-    exit 0
-fi
-
-# Iterate tab-separated candidate rows: number, updatedAt, title, url.
-while IFS=$'\t' read -r PR_NUM PR_UPDATED_AT PR_TITLE PR_URL; do
-    [ -z "$PR_NUM" ] && continue
-    CANDIDATE_C=$((CANDIDATE_C + 1))
-
-    PR_UPDATED_EPOCH="$(date -u -d "$PR_UPDATED_AT" +%s)" || {
-        ERROR_E=$((ERROR_E + 1))
-        continue
-    }
-
-    # Keep a silence window for very recent PR updates to reduce noisy duplicates.
-    if [ $((NOW_EPOCH - PR_UPDATED_EPOCH)) -lt "$PR_SILENT_WINDOW_SEC" ]; then
-        FILTER_Z=$((FILTER_Z + 1))
-        continue
-    fi
-
-    DIFF_RAW="$(gh pr diff "$PR_NUM" -R "$TARGET_REPO" | grep "^+" | grep -v "^+++" || true)"
-    TEACHER="$(extract_teacher "$DIFF_RAW")"
-    EMAIL="$(extract_email "$DIFF_RAW")"
-    LEVEL="$(detect_priority_level "$DIFF_RAW")"
-
-    if [ "$LEVEL" = "高优先级" ]; then
-        HIT_HIGH_X=$((HIT_HIGH_X + 1))
+if ! bash "$SCRIPT_DIR/stage_4_filter_prs.sh" > "$CANDIDATES_FILE"; then
+    # Check if stage_4 returned 2 (no candidates)
+    if [ $? -eq 2 ]; then
+        echo "Stage 4: No candidate PRs"
+        bash "$SCRIPT_DIR/stage_7_audit.sh" idle
+        rm -rf "$TMP_DIR"
+        echo "=== Done ==="
+        exit 0
     else
-        HIT_NORMAL_Y=$((HIT_NORMAL_Y + 1))
+        echo "ERROR: Stage 4 failed"
+        rm -rf "$TMP_DIR"
+        exit 1
     fi
+fi
 
-    echo "Result: PR#$PR_NUM | Level: $LEVEL | Name: ${TEACHER:-N/A} | Contact: ${EMAIL:-N/A}"
-    send_message "【保研情报推送】
-院校院系：待解析
-活动类型：PR 更新
-信息级别：$LEVEL
-更新详情：${PR_TITLE}
-官方链接：${PR_URL}
-来源参考：GitHub PR #${PR_NUM}
-联系人：${EMAIL:-N/A}
-老师：${TEACHER:-N/A}"
+# Stage 5: PR processing
+echo "Stage 5: PR processing"
+if ! bash "$SCRIPT_DIR/stage_5_process_prs.sh" "$CANDIDATES_FILE" --export > "$TMP_DIR/stats.txt"; then
+    echo "ERROR: Stage 5 failed"
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
 
-    # Move watermark forward only when processing newer items.
-    if [ "$PR_UPDATED_EPOCH" -gt "$LAST_SCAN_EPOCH" ]; then
-        echo "$PR_UPDATED_AT" > "$WATERMARK_FILE"
-        LAST_SCAN_EPOCH="$PR_UPDATED_EPOCH"
-    fi
-done <<< "$PR_CANDIDATES"
+# Parse stage_5 stats
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$TMP_DIR/stats.txt" ]; then
+    # Read stats into variables
+    while IFS='=' read -r key value; do
+        case "$key" in
+            SCAN_N) SCAN_N="$value" ;;
+            CANDIDATE_C) CANDIDATE_C="$value" ;;
+            HIT_HIGH_X) HIT_HIGH_X="$value" ;;
+            HIT_NORMAL_Y) HIT_NORMAL_Y="$value" ;;
+            FILTER_Z) FILTER_Z="$value" ;;
+            ERROR_E) ERROR_E="$value" ;;
+        esac
+    done < "$TMP_DIR/stats.txt"
 
-# Final aggregate audit line for this run.
-audit_line "扫描PR数: $SCAN_N | 候选PR数: $CANDIDATE_C | 命中高优先级: $HIT_HIGH_X | 命中常规: $HIT_NORMAL_Y | 过滤干扰项: $FILTER_Z | 错误数: $ERROR_E"
+    # Write audit line
+    bash "$SCRIPT_DIR/stage_7_audit.sh" stats "$SCAN_N" "$CANDIDATE_C" "$HIT_HIGH_X" "$HIT_NORMAL_Y" "$FILTER_Z" "$ERROR_E"
+fi
+
+# Cleanup temporary files
+rm -rf "$TMP_DIR"
+
+echo "=== Done ==="

@@ -10,11 +10,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 代码架构与核心组件
 
-### 1. 系统架构
+### 简化版架构（推荐）
+```
+┌──────────────────────────────────────────────────┐
+│            tracker_simple.sh                     │
+│  ┌────────────────────────────────────────────┐ │
+│  │ 核心功能：时间过滤 + 直接推送                │ │
+│  ├────────────────────────────────────────────┤ │
+│  │ - 依赖检查、初始化                           │ │
+│  │ - 仓库同步、commit 早退判断                  │ │
+│  │ - PR 拉取、时间过滤（水位线 + 静默窗口）     │ │
+│  │ - 消息推送（完整 PR 信息）                   │ │
+│  │ - 审计日志                                   │ │
+│  └────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+         │
+         ▼
+┌──────────────────┐
+│ tracker_config.sh│
+└──────────────────┘
+```
 
+### 原版架构（7阶段）
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│ tracker_config.sh│     │ tracker_extract.sh│     │ tracker_main.sh  │
+│ tracker_config.sh│     │ tracker_extract.sh│     │ 阶段脚本         │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
           │                       │                       │
           ├───────────────────────┼───────────────────────┤
@@ -26,54 +46,147 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
           │                       │                       │
           ▼                       ▼                       ▼
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   配置管理模块    │     │   信息提取模块    │     │   主流程控制模块  │
+│   配置管理模块    │     │   信息提取模块    │     │   调度控制模块    │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
 ### 2. 核心文件说明
 
+#### 共享模块
 | 文件名 | 功能 | 主要内容 |
 |-------|------|----------|
-| `tracker_config.sh` | 配置管理 | 路径配置、时间窗口设置、目标仓库、PR拉取上限 |
+| `tracker_config.sh` | 配置管理 | 路径配置、时间窗口设置、目标仓库、PR拉取上限，含共享工具函数 |
 | `tracker_extract.sh` | 信息提取 | 老师姓名、邮箱、优先级判断的字段提取函数 |
-| `tracker_main.sh` | 主流程控制 | 水位线初始化、仓库同步、commit早退、PR增量筛选、日志写入 |
 
-### 3. 执行流程
+#### 阶段脚本（按执行顺序）
+| 文件名 | 功能 | 主要内容 |
+|-------|------|----------|
+| `stage_1_init.sh` | 阶段1 | 初始化与依赖检查、水位线初始化 |
+| `stage_2_sync_repo.sh` | 阶段2 | 仓库同步（拉取最新状态） |
+| `stage_3_check_commit.sh` | 阶段3 | Commit检查与早退判断 |
+| `stage_4_filter_prs.sh` | 阶段4 | PR筛选（获取并筛选候选PR） |
+| `stage_5_process_prs.sh` | 阶段5 | PR处理（提取信息、判断优先级） |
+| `stage_6_message.sh` | 阶段6 | 消息推送 |
+| `stage_7_audit.sh` | 阶段7 | 审计日志 |
 
-```mermaid
-graph TD
-    A[开始] --> B[检查依赖]
-    B --> C[初始化水位线]
-    C --> D[同步仓库状态]
-    D --> E{检测最新commit}
-    E -- 1小时内新commit --> F[推送commit摘要]
-    F --> G[更新水位线]
-    G --> H[记录审计日志]
-    H --> I[结束]
-    E -- 无新commit或超过1小时 --> J[获取PR列表]
-    J --> K[筛选候选PR]
-    K --> L{有候选PR?}
-    L -- 无 --> M[记录Idle日志]
-    M --> I
-    L -- 有 --> N[处理每个PR]
-    N --> O[提取信息]
-    O --> P[判断优先级]
-    P --> Q[推送消息]
-    Q --> R[更新水位线]
-    R --> N
-    N -- 全部处理完毕 --> S[记录审计日志]
-    S --> I
+#### 调度脚本
+| 文件名 | 功能 | 主要内容 |
+|-------|------|----------|
+| `tracker_simple.sh` | **简化版（推荐）** | 单文件脚本，时间过滤+直接推送 |
+| `tracker_main.sh` | 7阶段调度 | 组合所有阶段的执行流程 |
+
+## 执行流程
+
+### 简化版（推荐）
+```bash
+# 单文件执行（不需要阶段划分）
+bash ./tracker_simple.sh
+
+# 环境变量覆盖
+REPO_DIR=/path/to/repo \
+TRACKER_DIR=/path/to/tracker \
+MESSAGE_SINK_CMD="your-push-command" \
+bash ./tracker_simple.sh
+```
+
+### 原版（7阶段）
+```bash
+bash ./tracker_main.sh
+```
+
+### 阶段独立运行流程
+
+#### 阶段1：初始化与依赖检查
+```bash
+# 检查依赖、创建存储目录、初始化水位线
+bash ./stage_1_init.sh
+
+# 环境变量覆盖
+REPO_DIR=/path/to/repo bash ./stage_1_init.sh
+```
+
+#### 阶段2：仓库同步
+```bash
+# 拉取仓库最新状态
+bash ./stage_2_sync_repo.sh
+
+# 导出commit信息供下游使用
+bash ./stage_2_sync_repo.sh --export
+```
+
+#### 阶段3：Commit检查与早退
+```bash
+# 检查最新commit，判断是否需要早退
+# 返回0：应该早退，1：继续执行
+bash ./stage_3_check_commit.sh
+```
+
+#### 阶段4：PR筛选
+```bash
+# 筛选候选PR，输出TSV格式
+bash ./stage_4_filter_prs.sh
+
+# 保存到文件
+bash ./stage_4_filter_prs.sh > candidates.tsv
+
+# 导出统计数据
+bash ./stage_4_filter_prs.sh --export
+```
+
+#### 阶段5：PR处理
+```bash
+# 从文件读取并处理PR
+bash ./stage_5_process_prs.sh candidates.tsv
+
+# 从管道读取
+cat candidates.tsv | bash ./stage_5_process_prs.sh
+```
+
+#### 阶段6：消息推送
+```bash
+# 发送消息
+bash ./stage_6_message.sh "【保研情报推送】...消息内容..."
+
+# 使用自定义sink
+MESSAGE_SINK_CMD="your-push-command" bash ./stage_6_message.sh "msg"
+```
+
+#### 阶段7：审计日志
+```bash
+# 写入自定义日志
+bash ./stage_7_audit.sh log "脚本已启动"
+
+# 写入扫描统计
+bash ./stage_7_audit.sh stats 50 5 2 3 0 0
+
+# 写入idle状态
+bash ./stage_7_audit.sh idle
+
+# 查看最近日志
+bash ./stage_7_audit.sh show 20
 ```
 
 ## 关键功能与设计理念
 
-### 1. 时间窗口机制
+### 设计理念（简化版）
+
+根据仓库 `CS-BAOYAN/CSLabInfo2025` 的特点，我们提供了两个版本：
+
+1. **简化版**（推荐）：`tracker_simple.sh`
+   - 仓库内容已经过审核和精炼
+   - 文件名自带结构化信息（年份、学校、老师、招生类型）
+   - 不需要复杂的优先级判定和内容提取
+   - 只做时间过滤，直接推送所有新信息
+
+2. **原版**：7阶段脚本，带优先级判定和内容提取
+
+### 1. 时间窗口机制（两个版本都保留）
 
 - **Commit早退窗口**：1小时（3600秒）- 若最新commit在1小时内，直接推送摘要并结束流程
 - **PR静默窗口**：1小时（3600秒）- PR更新后1小时内不推送，避免重复推送
 - **水位线机制**：记录上次扫描时间，实现增量扫描
 
-### 2. 优先级判定
+### 2. 优先级判定（仅原版）
 
 - **高优先级**：涉及前沿交叉学科或主流AI方向
   - 关键词：多模态、LLM/Agent、具身智能、AI4Science、计算医学、医疗影像、大模型安全、系统安全
@@ -86,7 +199,11 @@ graph TD
 
 ```bash
 # 运行时覆盖配置
-REPO_DIR=/path/to/repo TRACKER_DIR=/path/to/tracker bash ./tracker_main.sh
+REPO_DIR=/path/to/repo \
+TRACKER_DIR=/path/to/tracker \
+MESSAGE_SINK_CMD="your-push-command" \
+TARGET_REPO="owner/repo" \
+bash ./tracker_main.sh
 ```
 
 #### 默认部署路径
@@ -95,12 +212,6 @@ REPO_DIR=/path/to/repo TRACKER_DIR=/path/to/tracker bash ./tracker_main.sh
 - 数据存储：`./baoyan-tracker/data/tracker/`
 
 ## 运行与维护
-
-### 执行命令
-
-```bash
-bash ./tracker_main.sh
-```
 
 ### 依赖检查
 
@@ -144,9 +255,9 @@ Result: PR#123 | Level: 高优先级 | Name: 张教授 | Contact: zhang@universi
 在 `tracker_extract.sh` 中添加新的提取函数：
 
 ```bash
-extract_field() {
+extract_new_field() {
     local diff_raw="$1"
-    echo "$diff_raw" | grep -oP "your-pattern"
+    echo "$diff_raw" | grep -oP "your-pattern" | head -1
 }
 ```
 
@@ -169,7 +280,7 @@ detect_priority_level() {
 
 ### 推送接口扩展
 
-在 `tracker_main.sh` 中修改 `send_message()` 函数：
+在 `stage_6_message.sh` 中修改 `send_message()` 函数：
 
 ```bash
 send_message() {

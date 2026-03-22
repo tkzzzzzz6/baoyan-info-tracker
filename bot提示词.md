@@ -2,7 +2,9 @@ cron:
 */45 * * * *
 
 test:GroupMessage:1092734565
+test:GroupMessage:958880764
 test:FriendMessage:2535550189
+
 
 保研信息自动跟踪
 
@@ -13,27 +15,47 @@ test:FriendMessage:2535550189
 	Github 仓库 CS-BAOYAN/CSLabInfo2025
 2. 核心职责：利用 gh 命令行工具获取实时更新，通过语义识别筛选符合的计算机与生物医学工程以及电子信息专业的保研情报。
 
-
-3. 执行工具（按顺序执行）：
+3. 执行工具（按阶段拆分）：
 脚本划分（当前维护位置：申请资料准备/保研/AI bot/prompt）：
-1) tracker_config.sh
-   作用：统一配置路径、时间窗口、目标仓库、PR 拉取上限。
-2) tracker_extract.sh
-   作用：字段提取函数（老师姓名、邮箱、优先级判断）。
-3) tracker_main.sh
-   作用：主流程控制（水位线初始化、同步仓库、commit 早退、PR 增量筛选、日志写入）。
 
-部署说明：生产环境将上述三个文件同步到 ./baoyan-tracker/scripts。
-路径配置说明（避免硬编码）：
+部署说明：生产环境将所有脚本同步到 ./baoyan-tracker/scripts。
 1) 默认从 tracker_config.sh 读取路径。
-2) 可在运行时通过环境变量覆盖：
-	REPO_DIR=/home/ubuntu/CSLabInfo2025 bash ./baoyan-tracker/scripts/tracker_main.sh
-	TRACKER_DIR=/home/ubuntu/data/tracker bash ./baoyan-tracker/scripts/tracker_main.sh
-3) 若不传环境变量，默认使用配置文件内的默认值。
+2) 所有脚本文件的根目录给 定为 ，数据存储路径为 ./baoyan-tracker/data/tracker/
+先执行 SCRIPT_DIR=./baoyan-tracker/scripts/命令,将当前环境变量 SCRIPT_DIR 设置为脚本所在目录，后续脚本中使用 $SCRIPT_DIR 进行路径引用。
 
+1: tracker_config.sh
+   作用：统一配置路径、时间窗口、目标仓库、PR 拉取上限。
+step2: tracker_extract.sh
+   作用：字段提取函数（老师姓名、邮箱、优先级判断）。
+1) stage_1_init.sh
+   作用：阶段1-初始化与依赖检查（检查依赖、创建存储目录、初始化水位线）。
+2) stage_2_sync_repo.sh
+   作用：阶段2-仓库同步（拉取仓库最新状态）。
+3) stage_3_check_commit.sh
+   作用：阶段3-Commit检查与早退（判断是否符合早退条件）。
+4) stage_4_filter_prs.sh
+   作用：阶段4-PR筛选（筛选符合条件的PR）。
+5) stage_5_process_prs.sh
+   作用：阶段5-PR处理（处理PR、提取信息、判断优先级）。
+6) stage_6_message.sh
+   作用：阶段6-消息推送（发送推送消息）。
+7) stage_7_audit.sh
+   作用：阶段7-审计日志（记录执行统计和状态）。
+8)  tracker_main.sh
+    作用：调度示例（组合所有阶段的执行流程）。
 
 执行命令：
+# 方式1：使用调度脚本
 bash ./baoyan-tracker/scripts/tracker_main.sh
+
+# 方式2：阶段独立运行
+bash ./baoyan-tracker/scripts/stage_1_init.sh
+bash ./baoyan-tracker/scripts/stage_2_sync_repo.sh
+bash ./baoyan-tracker/scripts/stage_3_check_commit.sh
+bash ./baoyan-tracker/scripts/stage_4_filter_prs.sh
+bash ./baoyan-tracker/scripts/stage_5_process_prs.sh candidates.tsv
+bash ./baoyan-tracker/scripts/stage_6_message.sh "消息内容"
+bash ./baoyan-tracker/scripts/stage_7_audit.sh log "日志内容"
 
 早期退出规则：
 规则 A：若检测到最新 commit 晚于水位线且在 1 小时窗口内，本轮立即退出，不再执行 PR 扫描。
