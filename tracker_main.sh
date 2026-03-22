@@ -37,9 +37,13 @@ echo "Stage 4: PR filtering"
 TMP_DIR=$(mktemp -d -t tracker-XXXXXX)
 CANDIDATES_FILE="$TMP_DIR/candidates.tsv"
 
-if ! bash "$SCRIPT_DIR/stage_4_filter_prs.sh" > "$CANDIDATES_FILE"; then
-    # Check if stage_4 returned 2 (no candidates)
-    if [ $? -eq 2 ]; then
+set +e
+bash "$SCRIPT_DIR/stage_4_filter_prs.sh" > "$CANDIDATES_FILE"
+STAGE4_RC=$?
+set -e
+
+if [ "$STAGE4_RC" -ne 0 ]; then
+    if [ "$STAGE4_RC" -eq 2 ]; then
         echo "Stage 4: No candidate PRs"
         bash "$SCRIPT_DIR/stage_7_audit.sh" idle
         rm -rf "$TMP_DIR"

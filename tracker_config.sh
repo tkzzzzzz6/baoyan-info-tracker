@@ -23,6 +23,10 @@ PR_SILENT_WINDOW_SEC=3600
 # PR fetch settings
 TARGET_REPO="${TARGET_REPO:-CS-BAOYAN/CSLabInfo2025}"
 PR_LIMIT="${PR_LIMIT:-50}"
+# Validate PR_LIMIT is a positive integer to prevent argument injection
+case "$PR_LIMIT" in
+    ''|*[!0-9]*) echo "ERROR: PR_LIMIT must be a positive integer, got: $PR_LIMIT" >&2; exit 1 ;;
+esac
 
 # ----------------- Shared utility functions -----------------
 

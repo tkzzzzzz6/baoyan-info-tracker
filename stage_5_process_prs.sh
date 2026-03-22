@@ -29,6 +29,15 @@ process_pr() {
 
     echo "Processing PR #${PR_NUM}..."
 
+    # Validate PR_NUM is a positive integer to prevent argument injection
+    case "$PR_NUM" in
+        ''|*[!0-9]*)
+            echo "Error: Invalid PR number (non-numeric): $PR_NUM" >&2
+            ERROR_E=$((ERROR_E + 1))
+            return 1
+            ;;
+    esac
+
     # Check silent window
     PR_UPDATED_EPOCH="$(date -u -d "$PR_UPDATED_AT" +%s)" || {
         echo "Error parsing date for PR #$PR_NUM: $PR_UPDATED_AT"
