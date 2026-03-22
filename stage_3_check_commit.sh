@@ -37,7 +37,6 @@ get_commit_details() {
 build_commit_message() {
     send_message "【保研情报推送】
 活动类型：主分支最新提交
-信息级别：常规
 更新详情：检测到主分支 1 小时内新增提交，已提取关键变动。
 来源参考：${TARGET_REPO}
 提交信息：

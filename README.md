@@ -129,17 +129,17 @@
 
 确保系统已安装以下依赖：
 
-\`\`\`bash
+```bash
 # 必需依赖
 - git        # 版本控制
 - gh         # GitHub CLI
 - jq         # JSON处理
 - date       # 日期时间工具
-\`\`\`
+```
 
 ### 快速运行
 
-\`\`\`bash
+```bash
 # 1. 克隆仓库
 git clone https://github.com/tkzzzzzz6/baoyan-info-tracker.git
 cd baoyan-info-tracker
@@ -151,7 +151,7 @@ export MESSAGE_SINK_CMD="your-push-command"
 
 # 3. 运行完整流程
 bash ./tracker_main.sh
-\`\`\`
+```
 
 ## 安装部署
 
@@ -159,7 +159,7 @@ bash ./tracker_main.sh
 
 #### 1. 目录结构
 
-\`\`\`
+```
 project-root/
 ├── baoyan-tracker/
 │   ├── scripts/              # 脚本存放目录
@@ -177,11 +177,11 @@ project-root/
 │       └── tracker/          # 数据存储目录
 │           ├── watermark     # 水位线文件
 │           └── llog          # 审计日志
-\`\`\`
+````
 
 #### 2. 部署步骤
 
-\`\`\`bash
+```bash
 # 创建目录结构
 mkdir -p ./baoyan-tracker/scripts
 mkdir -p ./baoyan-tracker/data/tracker
@@ -191,23 +191,23 @@ cp *.sh ./baoyan-tracker/scripts/
 
 # 设置执行权限
 chmod +x ./baoyan-tracker/scripts/*.sh
-\`\`\`
+```
 
 ### 定时任务配置
 
 使用 cron 配置定时执行：
 
-\`\`\`bash
+```bash
 # 编辑 crontab
 crontab -e
 
 # 添加定时任务（每45分钟执行一次）
 */45 * * * * cd /path/to/project && bash ./baoyan-tracker/scripts/tracker_main.sh >> /var/log/baoyan-tracker.log 2>&1
-\`\`\`
+```
 
 ### Docker 部署（可选）
 
-\`\`\`dockerfile
+```dockerfile
 FROM ubuntu:22.04
 
 # 安装依赖
@@ -226,50 +226,50 @@ WORKDIR /app
 RUN echo "*/45 * * * * cd /app && bash ./baoyan-tracker/scripts/tracker_main.sh" | crontab -
 
 CMD ["cron", "-f"]
-\`\`\`
+```
 
 ## 使用指南
 
 ### 完整流程执行
 
-\`\`\`bash
+```bash
 # 使用调度脚本（推荐）
 bash ./tracker_main.sh
-\`\`\`
+```
 
 ### 阶段独立运行
 
 #### 阶段1：初始化与依赖检查
 
-\`\`\`bash
+```bash
 # 检查依赖、创建存储目录、初始化水位线
 bash ./stage_1_init.sh
 
 # 环境变量覆盖
 REPO_DIR=/path/to/repo bash ./stage_1_init.sh
-\`\`\`
+```
 
 #### 阶段2：仓库同步
 
-\`\`\`bash
+```bash
 # 拉取仓库最新状态
 bash ./stage_2_sync_repo.sh
 
 # 导出commit信息供下游使用
 bash ./stage_2_sync_repo.sh --export
-\`\`\`
+```
 
 #### 阶段3：Commit检查与早退
 
-\`\`\`bash
+```bash
 # 检查最新commit，判断是否需要早退
 # 返回0：应该早退，1：继续执行
 bash ./stage_3_check_commit.sh
-\`\`\`
+```
 
 #### 阶段4：PR筛选
 
-\`\`\`bash
+```bash
 # 筛选候选PR，输出TSV格式
 bash ./stage_4_filter_prs.sh
 
@@ -278,31 +278,31 @@ bash ./stage_4_filter_prs.sh > candidates.tsv
 
 # 导出统计数据
 bash ./stage_4_filter_prs.sh --export
-\`\`\`
+```
 
 #### 阶段5：PR处理
 
-\`\`\`bash
+```bash
 # 从文件读取并处理PR
 bash ./stage_5_process_prs.sh candidates.tsv
 
 # 从管道读取
 cat candidates.tsv | bash ./stage_5_process_prs.sh
-\`\`\`
+```
 
 #### 阶段6：消息推送
 
-\`\`\`bash
+```bash
 # 发送消息
 bash ./stage_6_message.sh "【保研情报推送】...消息内容..."
 
 # 使用自定义sink
 MESSAGE_SINK_CMD="your-push-command" bash ./stage_6_message.sh "msg"
-\`\`\`
+```
 
 #### 阶段7：审计日志
 
-\`\`\`bash
+```bash
 # 写入自定义日志
 bash ./stage_7_audit.sh log "脚本已启动"
 
@@ -314,11 +314,11 @@ bash ./stage_7_audit.sh idle
 
 # 查看最近日志
 bash ./stage_7_audit.sh show 20
-\`\`\`
+```
 
 ### 自定义组合流程
 
-\`\`\`bash
+```bash
 #!/bin/bash
 # 自定义组合示例
 
@@ -333,7 +333,7 @@ PR_LIST=$(bash ./stage_4_filter_prs.sh)
 if [ -n "$PR_LIST" ]; then
     echo "$PR_LIST" | bash ./stage_5_process_prs.sh
 fi
-\`\`\`
+```
 
 ## 配置说明
 
@@ -353,7 +353,7 @@ fi
 
 ### 运行时覆盖配置
 
-\`\`\`bash
+```bash
 # 完整示例
 REPO_DIR=/path/to/repo \\
 TRACKER_DIR=/path/to/tracker \\
@@ -361,19 +361,19 @@ MESSAGE_SINK_CMD="your-push-command" \\
 TARGET_REPO="owner/repo" \\
 MAX_PR_COUNT=100 \\
 bash ./tracker_main.sh
-\`\`\`
+```
 
 ### 消息推送配置
 
 #### 控制台输出（默认）
 
-\`\`\`bash
+```bash
 bash ./tracker_main.sh
-\`\`\`
+```
 
 #### 自定义推送命令
 
-\`\`\`bash
+```bash
 # 示例：通过企业微信推送
 MESSAGE_SINK_CMD="curl -X POST https://qyapi.weixin.qq.com/webhook/send" \\
 bash ./tracker_main.sh
@@ -385,7 +385,7 @@ bash ./tracker_main.sh
 # 示例：通过邮件推送
 MESSAGE_SINK_CMD="mail -s 'Baoyan Info' user@example.com" \\
 bash ./tracker_main.sh
-\`\`\`
+```
 
 ## 输出示例
 
@@ -393,7 +393,7 @@ bash ./tracker_main.sh
 
 当检测到最新 commit 在1小时内：
 
-\`\`\`
+```
 Found new commit on main branch.
 Commit: abc1234
 Author: John Doe <john@example.com>
@@ -407,25 +407,25 @@ New content:
 + 【北京大学计算机学院】
 + 2025年夏令营报名时间：2025年4月1日-4月30日
 + 研究方向：人工智能、系统安全
-\`\`\`
+```
 
 ### PR处理路径
 
 正常处理 PR 时的输出：
 
-\`\`\`
+```
 Result: PR#123 | Level: 高优先级 | Name: 张教授 | Contact: zhang@university.edu.cn
 Result: PR#124 | Level: 常规 | Name: 李教授 | Contact: li@university.edu.cn
 Result: PR#125 | Level: 常规 | Name: N/A | Contact: N/A
-\`\`\`
+```
 
 ### 审计日志
 
-\`\`\`
+```
 [2025-03-22 10:45:00] 扫描PR数: 50 | 候选PR数: 5 | 命中高优先级: 2 | 命中常规: 3 | 过滤干扰项: 0 | 错误数: 0
 [2025-03-22 11:30:00] Status: Idle (No relevant updates).
 [2025-03-22 12:15:00] Status: CommitEarlyExit (New commit detected within 1h window)
-\`\`\`
+```
 
 ## 开发扩展
 
@@ -433,18 +433,18 @@ Result: PR#125 | Level: 常规 | Name: N/A | Contact: N/A
 
 在 \`tracker_extract.sh\` 中添加提取函数：
 
-\`\`\`bash
+```bash
 extract_new_field() {
     local diff_raw="$1"
     echo "$diff_raw" | grep -oP "your-pattern" | head -1
 }
-\`\`\`
+```
 
 ### 扩展优先级判定规则
 
 修改 \`tracker_extract.sh\` 中的 \`detect_priority_level()\` 函数：
 
-\`\`\`bash
+```bash
 detect_priority_level() {
     local diff_raw="$1"
 
@@ -463,13 +463,13 @@ detect_priority_level() {
     # 低优先级
     echo "低优先级"
 }
-\`\`\`
+```
 
 ### 自定义推送接口
 
 修改 \`stage_6_message.sh\` 中的 \`send_message()\` 函数：
 
-\`\`\`bash
+```bash
 send_message() {
     local msg="$1"
 
@@ -482,13 +482,13 @@ send_message() {
         printf "%s\\n" "$msg"
     fi
 }
-\`\`\`
+```
 
 ### 添加新的阶段脚本
 
 创建 \`stage_8_custom.sh\`：
 
-\`\`\`bash
+```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -500,39 +500,39 @@ source "$SCRIPT_DIR/tracker_config.sh"
 
 # 你的自定义逻辑
 echo "Running custom stage..."
-\`\`\`
+```
 
 然后在 \`tracker_main.sh\` 中添加调用：
 
-\`\`\`bash
+```bash
 # 在适当位置添加
 bash "$SCRIPT_DIR/stage_8_custom.sh"
-\`\`\`
+```
 
 ## 常见问题
 
 ### Q1: 如何查看审计日志？
 
-\`\`\`bash
+```bash
 # 查看最近20条日志
 bash ./stage_7_audit.sh show 20
 
 # 或直接查看日志文件
 tail -n 50 ./baoyan-tracker/data/tracker/llog
-\`\`\`
+```
 
 ### Q2: 如何重置水位线？
 
-\`\`\`bash
+```bash
 # 删除水位线文件
 rm ./baoyan-tracker/data/tracker/watermark
 
 # 下次运行时会重新初始化
-\`\`\`
+```
 
 ### Q3: 依赖检查失败怎么办？
 
-\`\`\`bash
+```bash
 # Ubuntu/Debian
 sudo apt-get update
 sudo apt-get install git gh jq
@@ -544,11 +544,11 @@ brew install git gh jq
 git --version
 gh --version
 jq --version
-\`\`\`
+```
 
 ### Q4: 如何调试单个阶段？
 
-\`\`\`bash
+```bash
 # 启用调试模式
 set -x
 
@@ -557,11 +557,11 @@ bash ./stage_4_filter_prs.sh
 
 # 禁用调试模式
 set +x
-\`\`\`
+```
 
 ### Q5: 消息推送不工作？
 
-\`\`\`bash
+```bash
 # 1. 检查环境变量
 echo $MESSAGE_SINK_CMD
 
@@ -570,17 +570,17 @@ echo "test message" | bash -lc "$MESSAGE_SINK_CMD"
 
 # 3. 查看日志
 tail -f /var/log/baoyan-tracker.log
-\`\`\`
+```
 
 ### Q6: 如何处理脚本执行权限问题？
 
-\`\`\`bash
+```bash
 # 添加执行权限
 chmod +x *.sh
 
 # 或使用 bash 显式执行
 bash ./tracker_main.sh
-\`\`\`
+```
 
 ## 贡献指南
 

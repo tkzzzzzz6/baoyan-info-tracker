@@ -68,7 +68,6 @@ process_pr() {
     send_message "【保研情报推送】
 院校院系：待解析
 活动类型：PR 更新
-信息级别：常规
 更新详情：${PR_TITLE}
 官方链接：${PR_URL}
 来源参考：GitHub PR #${PR_NUM}

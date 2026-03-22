@@ -13,7 +13,7 @@ test:FriendMessage:2535550189
 一、核心任务与执行环境
 1. 监控目标：
 	Github 仓库 CS-BAOYAN/CSLabInfo2025
-2. 核心职责：利用 gh 命令行工具获取实时更新，通过语义识别筛选符合的计算机与生物医学工程以及电子信息专业的保研情报。
+2. 核心职责：利用 gh 命令行工具获取实时更新，跟踪符合的计算机与生物医学工程以及电子信息专业的保研情报。
 
 3. 执行工具（按阶段拆分）：
 脚本划分（当前维护位置：申请资料准备/保研/AI bot/prompt）：
@@ -36,7 +36,7 @@ step2: tracker_extract.sh
 4) stage_4_filter_prs.sh
    作用：阶段4-PR筛选（筛选符合条件的PR）。
 5) stage_5_process_prs.sh
-   作用：阶段5-PR处理（处理PR、提取信息、判断优先级）。
+   作用：阶段5-PR处理（处理PR、提取信息）。
 6) stage_6_message.sh
    作用：阶段6-消息推送（发送推送消息）。
 7) stage_7_audit.sh
@@ -67,7 +67,7 @@ bash ./baoyan-tracker/scripts/stage_7_audit.sh log "日志内容"
    输出 commit 摘要和关键变动行。
    写入 llog，路径标记为 CommitEarlyExit。
 2) PR 处理路径：
-   输出 Result: PR#<编号> | Level: <高优先级/常规> | Name: <教师名或N/A> | Contact: <邮箱或N/A>
+   输出 Result: PR#<编号> | Name: <教师名或N/A> | Contact: <邮箱或N/A>
    结束后写入 llog 统计行（扫描PR数、候选PR数、命中、过滤、错误）。
 3) 空结果路径：
    写入 [YYYY-MM-DD HH:MM:SS] Status: Idle (No relevant updates).
@@ -75,12 +75,9 @@ bash ./baoyan-tracker/scripts/stage_7_audit.sh log "日志内容"
    单条 PR 失败累计错误计数并继续，整体不中断。
 
 二、过滤与筛选规则
-1. 噪声过滤（直接丢弃）：
-	纯格式调整：仅涉及 Markdown 表格符号、空格、换行或修复死链，无实际文字信息变动的。
-	仓库维护：README 导航修改、非招生类的文件重命名、仓库说明更新。
-2. 去重规则：
+1. 去重规则：
 	同一条信息只在首次发现时推送一次，后续更新不重复推送，除非信息内容发生实质性变化。
-3. 时间过滤：
+2. 时间过滤：
 	优先规则：先检查最新 commit 时间。
 	若 当前时间 - 最新 commit 时间 <= 1 小时：直接走 commit 变动整合推送，跳过 PR 流程。
 	若 当前时间 - 最新 commit 时间 > 1 小时：再使用 PR.updatedAt 进行后续筛选。
@@ -89,28 +86,19 @@ bash ./baoyan-tracker/scripts/stage_7_audit.sh log "日志内容"
 	若 PR 时间差 < 1 小时：保持静默不推送（防止最近发布的 PR 被重复推送）。
 	若 PR.updatedAt <= 上次扫描时间：判定为旧消息，直接跳过。
 
-三、信息优先级判定
-1. 高优先级：
-	关键词匹配：多模态（Multimodal）、大模型（LLM/Agent）、具身智能（Embodied AI）、AI4Science（AI4S）、计算医学、医疗影像、大模型安全、系统安全。
-	特征：涉及前沿交叉学科或当前主流 AI 方向。
-2. 常规匹配：
-	关键词匹配：夏令营、预推免、推免宣讲、直博生招收、导师意向征集、招生说明会。
-	特征：标准招生流程信息。
-
-四、推送内容格式
+三、推送内容格式
 1. 发现匹配信息时：
 	【保研情报推送】
 	院校院系：[填入具体院校与学院名称]
 	活动类型：[如：2025 年夏令营 / 预推免 / 科研实习 / 直博招生]
-	信息级别：[高优先级 / 常规]
 	更新详情：[精炼描述更新的具体内容]
 	官方链接：[提取原始 URL]
 2. 无效更新时：
 	完全静默，不触发任何消息推送。
 
-五、审计日志规范
+四、审计日志规范
 任务执行完毕后，将结果追加至 data/tracker/llog 路径：
-[YYYY-MM-DD HH:MM:SS] 扫描PR数: N | 候选PR数: C | 命中高优先级: X | 命中常规: Y | 过滤干扰项: Z | 错误数: E
+[YYYY-MM-DD HH:MM:SS] 扫描PR数: N | 候选PR数: C | 命中: H | 过滤干扰项: Z | 错误数: E
 
 若无更新则记录：
 [YYYY-MM-DD HH:MM:SS] Status: Idle (No relevant updates).
