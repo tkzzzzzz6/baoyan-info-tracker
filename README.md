@@ -22,8 +22,7 @@
 ### 功能特点
 
 - **自动监控**：定时监控目标仓库的 commit 和 PR 更新
-- **智能筛选**：基于关键词和时间窗口的多层过滤机制
-- **优先级判定**：区分高优先级（前沿交叉学科）和常规招生信息
+- **时间过滤**：基于时间窗口的简单过滤机制
 - **消息推送**：支持自定义推送命令，灵活对接各类通知渠道
 - **增量扫描**：水位线机制避免重复推送
 - **审计日志**：完整的执行记录便于追溯和调试
@@ -43,27 +42,11 @@
 - **PR静默窗口**（1小时）：PR 更新后1小时内不推送，避免重复
 - **水位线机制**：记录上次扫描时间，实现增量扫描
 
-### 2. 优先级判定
+### 2. 时间窗口机制
 
-#### 高优先级关键词
-涉及前沿交叉学科或主流 AI 方向：
-- 多模态（Multimodal）
-- 大模型（LLM/Agent）
-- 具身智能（Embodied AI）
-- AI4Science（AI4S）
-- 计算医学
-- 医疗影像
-- 大模型安全
-- 系统安全
-
-#### 常规关键词
-标准招生流程信息：
-- 夏令营
-- 预推免
-- 推免宣讲
-- 直博生招收
-- 导师意向征集
-- 招生说明会
+- **Commit早退窗口**（1小时）：最新 commit 在1小时内时，直接推送摘要并结束流程
+- **PR静默窗口**（1小时）：PR 更新后1小时内不推送，避免重复
+- **水位线机制**：记录上次扫描时间，实现增量扫描
 
 ### 3. 噪声过滤
 
@@ -91,7 +74,7 @@
 2. **阶段2 - 仓库同步**：拉取目标仓库最新状态
 3. **阶段3 - Commit检查**：检测最新 commit，如在1小时内则直接推送并早退
 4. **阶段4 - PR筛选**：根据时间窗口和水位线筛选候选 PR
-5. **阶段5 - PR处理**：提取信息、判断优先级（高优先级/常规）
+5. **阶段5 - PR处理**：提取信息
 6. **阶段6 - 消息推送**：发送格式化的推送消息
 7. **阶段7 - 审计日志**：记录执行统计和状态
 
@@ -114,7 +97,7 @@
 | \`stage_2_sync_repo.sh\` | 阶段2 | 仓库同步（拉取最新状态） |
 | \`stage_3_check_commit.sh\` | 阶段3 | Commit检查与早退判断 |
 | \`stage_4_filter_prs.sh\` | 阶段4 | PR筛选（获取并筛选候选PR） |
-| \`stage_5_process_prs.sh\` | 阶段5 | PR处理（提取信息、判断优先级） |
+| \`stage_5_process_prs.sh\` | 阶段5 | PR处理（提取信息） |
 | \`stage_6_message.sh\` | 阶段6 | 消息推送 |
 | \`stage_7_audit.sh\` | 阶段7 | 审计日志 |
 
@@ -414,15 +397,15 @@ New content:
 正常处理 PR 时的输出：
 
 ```
-Result: PR#123 | Level: 高优先级 | Name: 张教授 | Contact: zhang@university.edu.cn
-Result: PR#124 | Level: 常规 | Name: 李教授 | Contact: li@university.edu.cn
-Result: PR#125 | Level: 常规 | Name: N/A | Contact: N/A
+Result: PR#123 | Name: 张教授 | Contact: zhang@university.edu.cn
+Result: PR#124 | Name: 李教授 | Contact: li@university.edu.cn
+Result: PR#125 | Name: N/A | Contact: N/A
 ```
 
 ### 审计日志
 
 ```
-[2025-03-22 10:45:00] 扫描PR数: 50 | 候选PR数: 5 | 命中高优先级: 2 | 命中常规: 3 | 过滤干扰项: 0 | 错误数: 0
+[2025-03-22 10:45:00] 扫描PR数: 50 | 候选PR数: 5 | 命中: 5 | 过滤干扰项: 0 | 错误数: 0
 [2025-03-22 11:30:00] Status: Idle (No relevant updates).
 [2025-03-22 12:15:00] Status: CommitEarlyExit (New commit detected within 1h window)
 ```
@@ -440,28 +423,21 @@ extract_new_field() {
 }
 ```
 
-### 扩展优先级判定规则
+### 功能已简化
 
-修改 \`tracker_extract.sh\` 中的 \`detect_priority_level()\` 函数：
+**注**：当前版本已删除优先级判定功能，所有符合条件的 PR 都会被直接推送，不再区分高优先级或常规。
+
+如果需要重新添加该功能，可参考以下实现：
 
 ```bash
+# 在 tracker_extract.sh 中添加优先级判定函数
 detect_priority_level() {
     local diff_raw="$1"
-
-    # 高优先级判定
-    if echo "$diff_raw" | grep -Eiq "new-keyword-1|new-keyword-2"; then
+    if echo "$diff_raw" | grep -Eiq "keyword1|keyword2"; then
         echo "高优先级"
-        return
-    fi
-
-    # 常规判定
-    if echo "$diff_raw" | grep -Eiq "other-keyword"; then
+    else
         echo "常规"
-        return
     fi
-
-    # 低优先级
-    echo "低优先级"
 }
 ```
 
