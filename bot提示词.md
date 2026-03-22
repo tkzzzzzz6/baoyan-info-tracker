@@ -18,9 +18,9 @@ test:FriendMessage:2535550189
 3. 执行工具（按阶段拆分）：
 脚本划分（当前维护位置：申请资料准备/保研/AI bot/prompt）：
 
-部署说明：生产环境将所有脚本同步到 ./baoyan-tracker/scripts。
+生产环境将所有脚本安装到了 $/baoyan-tracker/scripts。
 1) 默认从 tracker_config.sh 读取路径。
-2) 所有脚本文件的根目录给 定为 ，数据存储路径为 ./baoyan-tracker/data/tracker/
+2) 所有脚本文件的根目录给 定为 ，数据存储路径为 baoyan-tracker/data/tracker/
 先执行 SCRIPT_DIR=./baoyan-tracker/scripts/命令,将当前环境变量 SCRIPT_DIR 设置为脚本所在目录，后续脚本中使用 $SCRIPT_DIR 进行路径引用。
 
 1: tracker_config.sh
