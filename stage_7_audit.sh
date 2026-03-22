@@ -81,7 +81,7 @@ case "$1" in
             echo "Usage: $0 stats <scan> <candidate> <hit> <filter> <error> [path]" >&2
             exit 1
         fi
-        write_scan_stats "$2" "$3" "$4" "$5" "$6" "$7"
+        write_scan_stats "$2" "$3" "$4" "$5" "$6" "${7:-}"
         ;;
     idle)
         write_idle
